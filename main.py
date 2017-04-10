@@ -94,4 +94,4 @@ if __name__ == '__main__':
         )
 
         for event_pair in booking_events:
-            cprint('\t"%s" and "%s" are booking!' % (omit(event_pair[0]['title']), omit(event_pair[1]['title'])), 'red')
+            cprint('\t"%s" and "%s" are double booked!' % (omit(event_pair[0]['title']), omit(event_pair[1]['title'])), 'red')

@@ -1,0 +1,4 @@
+#!/bin/sh -eu
+
+DIR=$(cd $(dirname $0); pwd)
+python $DIR/../main.py $@

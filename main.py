@@ -4,6 +4,7 @@ import time
 import dateutil.parser
 from itertools import islice
 from pyquery import PyQuery as pq
+from termcolor import colored, cprint
 
 interval = 1
 headers = {'user-agent': 'pyquery'};
@@ -58,6 +59,12 @@ def window(seq, n=2):
         result = result[1:] + (elem,)
         yield result
 
+def omit(text, length=20, ellipsis='...'):
+    omitted = text[0:length]
+    if omitted != text:
+        omitted += ellipsis
+    return omitted
+
 if __name__ == '__main__':
     if len(sys.argv) != 2:
         print("Usage:\n  conn-cut url" % sys.argv[0])
@@ -71,10 +78,20 @@ if __name__ == '__main__':
     for user in fetch_event_users(event_url):
         time.sleep(interval)
         user = fetch_user_details(user)
+
         cancel_rate = len(list(filter(lambda e:e['status'] == 'キャンセル', user['events']))) / len(user['events'])
         booking_events = [detect_booking_events(event_pair) for event_pair in window(user['events'])]
         booking_events = list(filter(None, booking_events))
         if not booking_events and cancel_rate == 0: continue
-        print('(%d%%) %s:' % (cancel_rate * 100, user['id']))
+
+        if cancel_rate > 0.4:   cancel_color = 'red'
+        elif cancel_rate > 0.2: cancel_color = 'yellow'
+        else:                   cancel_color = 'green'
+        print(
+            colored('(%d%%)' % (cancel_rate * 100), cancel_color),
+            user['id'],
+            colored(user['url'], 'blue')
+        )
+
         for event_pair in booking_events:
-            print('\t"%s" and "%s" are booking!' % (event_pair[0]['title'], event_pair[1]['title']))
+            cprint('\t"%s" and "%s" are booking!' % (omit(event_pair[0]['title']), omit(event_pair[1]['title'])), 'red')

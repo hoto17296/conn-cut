@@ -65,6 +65,36 @@ def omit(text, length=20, ellipsis='...'):
         omitted += ellipsis
     return omitted
 
+def display_user(user):
+    if sys.stdout.isatty():
+        display_user_tty(user)
+    else:
+        display_user_tsv(user)
+
+def display_user_tty(user):
+    if not user['booking_events'] and user['cancel_rate'] == 0: return
+
+    if user['cancel_rate'] > 0.4:   cancel_color = 'red'
+    elif user['cancel_rate'] > 0.2: cancel_color = 'yellow'
+    else:                   cancel_color = 'green'
+    print(
+        colored('(%d%%)' % (user['cancel_rate'] * 100), cancel_color),
+        user['id'],
+        colored(user['url'], 'blue')
+    )
+
+    for event_pair in user['booking_events']:
+        cprint('\t"%s" and "%s" are double booked!' % (omit(event_pair[0]['title']), omit(event_pair[1]['title'])), 'red')
+
+def display_user_tsv(user):
+    row = [
+        user['id'],
+        user['url'],
+        user['cancel_rate'],
+        len(user['booking_events']),
+    ]
+    print("\t".join(map(str, row)))
+
 if __name__ == '__main__':
     if len(sys.argv) != 2:
         print("Usage:\n  conn-cut url" % sys.argv[0])
@@ -79,19 +109,8 @@ if __name__ == '__main__':
         time.sleep(interval)
         user = fetch_user_details(user)
 
-        cancel_rate = len(list(filter(lambda e:e['status'] == 'キャンセル', user['events']))) / len(user['events'])
-        booking_events = [detect_booking_events(event_pair) for event_pair in window(user['events'])]
-        booking_events = list(filter(None, booking_events))
-        if not booking_events and cancel_rate == 0: continue
+        user['cancel_rate'] = len(list(filter(lambda e:e['status'] == 'キャンセル', user['events']))) / len(user['events'])
+        user['booking_events'] = [detect_booking_events(event_pair) for event_pair in window(user['events'])]
+        user['booking_events'] = list(filter(None, user['booking_events']))
 
-        if cancel_rate > 0.4:   cancel_color = 'red'
-        elif cancel_rate > 0.2: cancel_color = 'yellow'
-        else:                   cancel_color = 'green'
-        print(
-            colored('(%d%%)' % (cancel_rate * 100), cancel_color),
-            user['id'],
-            colored(user['url'], 'blue')
-        )
-
-        for event_pair in booking_events:
-            cprint('\t"%s" and "%s" are double booked!' % (omit(event_pair[0]['title']), omit(event_pair[1]['title'])), 'red')
+        display_user(user)

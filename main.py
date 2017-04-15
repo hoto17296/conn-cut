@@ -2,9 +2,13 @@ import sys
 import re
 import time
 import dateutil.parser
+import MySQLdb
 from itertools import islice
 from pyquery import PyQuery as pq
 from termcolor import colored, cprint
+
+conn = MySQLdb.connect(user='root', passwd='', host='127.0.0.1', db='conn-cut')
+c = conn.cursor()
 
 interval = 1
 headers = {'user-agent': 'pyquery'};
@@ -32,6 +36,7 @@ def fetch_user_details(user):
     d = pq(user['url'], headers=headers)
     user['events'] = [
         {
+            'id': int(re.sub(r'^https?://.+?\.com/event/(\d+)/?$', r'\1', d(event).find('.event_title a').attr('href'))),
             'title': d(event).find('.event_title').text(),
             'start': dateutil.parser.parse(d(event).find('.dtstart .value-title').attr('title')),
             'end': dateutil.parser.parse(d(event).find('.dtend .value-title').attr('title')),
@@ -95,6 +100,32 @@ def display_user_tsv(user):
     ]
     print("\t".join(map(str, row)))
 
+def save_mysql(user):
+    try:
+        # save user
+        c.execute('SELECT `id` FROM `users` WHERE `id` = %s', (user['id'],))
+        if c.fetchone is None:
+            c.execute('INSERT IGNORE INTO users (`id`, `name`) VALUES (%s, %s)', (user['id'], user['name']))
+
+        # save events
+        c.execute('SELECT id FROM events')
+        event_ids = [e[0] for e in c.fetchall()]
+        for event in user['events']:
+            if event['id'] in event_ids: continue
+            c.execute(
+                    'INSERT INTO events (`id`, `group`, `title`, `start`, `end`) VALUES (%s, %s, %s, %s, %s)',
+                    (event['id'], event['group'], event['title'], event['start'], event['end'])
+            )
+
+        # save event_users
+        for event in user['events']:
+            c.execute('INSERT INTO `event_users` (`user_id`, `event_id`, `status`) VALUES (%s, %s, %s) ON DUPLICATE KEY UPDATE status = VALUES(status)', (user['id'], event['id'], event['status']))
+
+        conn.commit()
+    except:
+        print(c._last_executed)
+        raise
+
 if __name__ == '__main__':
     if len(sys.argv) != 2:
         print("Usage:\n  conn-cut url" % sys.argv[0])
@@ -113,4 +144,5 @@ if __name__ == '__main__':
         user['booking_events'] = [detect_booking_events(event_pair) for event_pair in window(user['events'])]
         user['booking_events'] = list(filter(None, user['booking_events']))
 
+        save_mysql(user)
         display_user(user)

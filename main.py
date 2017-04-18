@@ -45,6 +45,22 @@ def fetch_user_details(user):
         }
         for event in d('.event_list')
     ]
+    pages = list(set([d(a).attr('href') for a in d('.paging_area a')]))
+    for page in pages:
+        dd = pq(user['url'] + page, headers=headers)
+        print(user['url'] + page)
+        user['events'].extend([
+            {
+                'id': int(re.sub(r'^https?://.+?\.com/event/(\d+)/?$', r'\1', d(event).find('.event_title a').attr('href'))),
+                'title': d(event).find('.event_title').text(),
+                'start': dateutil.parser.parse(d(event).find('.dtstart .value-title').attr('title')),
+                'end': dateutil.parser.parse(d(event).find('.dtend .value-title').attr('title')),
+                'status': d(event).find('.label_status_tag').text(),
+                'group': d(event).find('.label_group').text(),
+            }
+            for event in dd('.event_list')
+        ])
+
     return user
 
 def detect_booking_events(events):
